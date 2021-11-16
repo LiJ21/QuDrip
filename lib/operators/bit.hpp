@@ -1,7 +1,7 @@
 //------------------------------------------------------------------
 
 #pragma once
-namespace qudrip
+namespace qudrip 
 {
 //=========================================================================
 template <typename T>
@@ -67,11 +67,13 @@ void bitOp<T>::branch(idx_it_type & idx_b, val_it_type & val_b, idx_it_type & id
 	if(*idx_b != 0)
 	{
 		bits_type bits(*idx_b - 1); // get the bitset representation
-		auto & U = U_[bits[site_]];
+		//auto & U = U_[bits[site_]];
 		auto prev_set = bits_type(bit_convert<idxv_type>(bits) >> site_ + 1).count(); 
 		value_type jw = prev_set % 2 ? string_ : 1;
-		val0 = jw * U(0,0) * (*val_b);
-		val1 = jw * U(1,0) * (*val_b);
+		//val0 = jw * U(0,0) * (*val_b);
+		//val1 = jw * U(1,0) * (*val_b);
+		val0 = jw * U_[bits[site_] * 2] * (*val_b);
+		val1 = jw * U_[bits[site_] * 2 + 1] * (*val_b);
 		bits[site_] = 0;
 		idx0 = bit_convert<idxv_type>(bits) + 1;
 		bits[site_] = 1;

@@ -105,10 +105,11 @@ void modeOp<T>::branch(idx_it_type & idx_b, val_it_type & val_b, idx_it_type & i
 	std::vector<idxv_type> idx(ndim_);
 	if(*idx_b != 0)
 	{
-		auto & U = U_[*idx_b - 1];
+		//auto & U = U_[*idx_b - 1];
 		for(auto i = 0 ; i < ndim_ ; ++i)
 		{
-			val[i] = U(i,0) * (*val_b);
+			//val[i] = U(i,0) * (*val_b);
+			val[i] = U_[(*idx_b - 1) * elOpBase::n_output + i] * (*val_b);
 			idx[i] = i;
 		}
 	}

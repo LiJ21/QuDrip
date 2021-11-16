@@ -12,31 +12,38 @@ using val_it_type = val_tree_type::iterator;
 
 class Operator;
 
+using U_out_type = std::vector<value_type>;
 class elOpBase
 {
 	protected:
-		std::vector<Matrix> U_;
-		size_t n_output;
+		//std::vector<U_out_type> U_;
+		U_out_type U_;
+		size_t n_input, n_output;
 	public:
 		elOpBase(size_t n_input, size_t n_output):
-			U_(n_input, Matrix(n_output, 1)), 
+			//U_(n_input, U_out_type(n_output)), 
+			U_(n_input * n_output),
+			n_input(n_input),
 			n_output(n_output)
 		{}
 
 		virtual void operator<<(Matrix U) 
 		{
 			assert(U.rows() == n_output);
-			assert(U.cols() == U_.size());
-			for(auto i = 0 ; i < U_.size(); ++i)
-				U_[i] = U.block(0, i, n_output, 1);
+			assert(U.cols() == n_input);
+			for(auto i = 0 ; i < n_input; ++i)
+				//U_[i] = U.block(0, i, n_output, 1);
+				for(auto j = 0; j < n_output; ++j)
+					U_[i * n_output + j] = U(i, j);
 		}
 
 		virtual void invert()
 		{
-			assert(U_.size() == n_output);
-			Matrix M(n_output,n_output);
-			for(auto i = 0 ; i < n_output; ++i)
-				M.block(0, i, n_output, 1) = U_[i];
+			assert(n_input == n_output);
+			Matrix M(n_input,n_output);
+			for(auto i = 0 ; i < n_input; ++i)
+				for(auto j = 0; j < n_output; ++j)
+					M(i,j) = U_[i * n_output + j];
 			operator<< (M.inverse().eval());
 		}
 
@@ -148,11 +155,17 @@ class Operator
 template<typename trans_index_type, typename index_type>
 inline void Operator::full_branch(trans_index_type & trans_index, index_type & index, value_type init, idx_it_type & idx_b, val_it_type & val_b)
 {
+#ifdef PRINT_TREE
+	std::cout << std::bitset<6>(idxv_type(trans_index)) << std::endl;
+	std::flush(std::cout);
+#endif
 	idx_tree[0] = idx_size_t(trans_index) + 1;
 	val_tree[0] = init;
 
+	//idx_it_type idx_b = idx_tree.begin();
 	idx_b = idx_tree.begin();
 	idx_it_type idx_e = idx_tree.begin() + 1;
+	//val_it_type val_b = val_tree.begin();
 	val_b = val_tree.begin();
 	val_it_type val_e = val_tree.begin() + 1;
 
@@ -164,6 +177,9 @@ inline void Operator::full_branch(trans_index_type & trans_index, index_type & i
 
 		for(; idx_b != idx_e; ++idx_b) //convert total index to "label index"
 		{
+#ifdef PRINT_TREE
+			std::cout << std::bitset<6>(*idx_b - 1) << ": "; std::flush(std::cout);
+#endif
 			if(*idx_b != 0)
 			{
 				trans_index[*idx_b - 1];
@@ -180,7 +196,15 @@ inline void Operator::full_branch(trans_index_type & trans_index, index_type & i
 					op -> feed_idx(*it - 1);
 					(*it) = trans_index + 1;
 				}
+#ifdef PRINT_TREE
+				std::cout << " " << std::bitset<6>((*it) - 1);std::flush(std::cout);
+#endif
+
 			}
+#ifdef PRINT_TREE
+			std::cout << std::endl << "->" << std::endl;
+			std::flush(std::cout);
+#endif
 			++val_b;
 		}
 
@@ -200,6 +224,9 @@ inline void Operator::full_branch(trans_index_type & trans_index, index_type & i
 			else
 				*(idx_b + j) = 0;
 		}
+#ifdef PRINT_TREE
+		std::cout << " " << std::bitset<6>((*(idx_b + j)) - 1); std::flush(std::cout);
+#endif
 	}
 
 }
@@ -246,15 +273,100 @@ SpMatrix Operator::operator>>(index_type && index)
 	triplets.reserve(ndim);
 	mat.reserve(ndim);
 
+	//for(auto i : range(ndim))
+#ifdef PRINT_TREE
+	std::cout << "tree expansion..." << std::endl;
+#endif
 	for(idxv_type i = 0; i < ndim; ++i)
 	{
 		index[i];
 		full_branch(trans_index, index, 1.0, idx_b, val_b);
+		/*
+#ifdef PRINT_TREE
+		std::cout << std::bitset<6>(idxv_type(trans_index)) << std::endl;
+		std::flush(std::cout);
+#endif
+		idx_tree[0] = idx_size_t(trans_index) + 1;
+		val_tree[0] = 1.0;
+
+		idx_it_type idx_b = idx_tree.begin();
+		idx_it_type idx_e = idx_tree.begin() + 1;
+		val_it_type val_b = val_tree.begin();
+		val_it_type val_e = val_tree.begin() + 1;
+
+		for(int i_op = ops_.size() - 1; i_op >= 0; --i_op)
+		{
+			auto & op = ops_[i_op];
+			auto idx_w = idx_e;
+			auto val_w = val_e;
+
+			for(; idx_b != idx_e; ++idx_b) //convert total index to "label index"
+			{
+#ifdef PRINT_TREE
+				std::cout << std::bitset<6>(*idx_b - 1) << ": "; std::flush(std::cout);
+#endif
+				if(*idx_b != 0)
+				{
+					trans_index[*idx_b - 1];
+					*idx_b = op -> get_idx() + 1;
+				}
+
+				auto idx_ww = idx_w;
+				op -> branch(idx_b, val_b, idx_w, val_w);
+
+				for(auto it = idx_ww; it != idx_w; ++it) //convert "label index" to the total index
+				{
+					if(*it != 0)
+					{
+						op -> feed_idx(*it - 1);
+						(*it) = trans_index + 1;
+					}
+#ifdef PRINT_TREE
+				 std::cout << " " << std::bitset<6>((*it) - 1);std::flush(std::cout);
+#endif
+
+				}
+#ifdef PRINT_TREE
+				std::cout << std::endl << "->" << std::endl;
+				std::flush(std::cout);
+#endif
+				++val_b;
+			}
+
+			idx_e = idx_w;
+			val_e = val_w;
+
+		}
+
+		for(size_t j = 0; j < n_leaves; ++j)
+		{
+			//translate back to index
+			if(*(idx_b + j) != 0)
+			{
+				trans_index[*(idx_b + j) - 1];
+				//if(index.exists())
+				if(index < index.range())
+					*(idx_b + j) = index + 1;
+				else
+					*(idx_b + j) = 0;
+			}
+#ifdef PRINT_TREE
+			std::cout << " " << std::bitset<6>((*(idx_b + j)) - 1); std::flush(std::cout);
+#endif
+			if(*(idx_b + j) != 0 && std::abs(*(val_b + j)) > eps)
+				triplets.emplace_back((*(idx_b + j)) - 1, i, *(val_b + j));
+
+		}
+	*/
 		for(size_t j = 0; j < n_leaves; ++j)
 		{
 				if(*(idx_b + j) != 0 && std::abs(*(val_b + j)) > eps)
 					triplets.emplace_back((*(idx_b + j)) - 1, i, *(val_b + j));
 		}
+
+#ifdef PRINT_TREE
+		std::cout << std::endl;
+#endif
 	}
 
 	mat.setFromTriplets(triplets.begin(), triplets.end());
