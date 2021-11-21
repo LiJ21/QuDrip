@@ -77,6 +77,35 @@ class McManager
 			obs_.find(name) -> second[idx] = mat;
 		}
 
+		template<typename MT>
+		void incrMatrix(const std::string & name, int idx, MT && mat)
+		{
+			auto & m = obs_.find(name) -> second[idx];
+			if(m.rows() == 0 || m.cols() == 0) 
+			{
+				m = mat;
+			}
+			else
+			{
+				m += mat;
+			}
+		}
+
+		void normMatrix(const std::string & name, int idx, value_type s)
+		{
+			obs_.find(name) -> second[idx] *= s;
+		}
+
+		SpMatrix & matrix(const std::string & name, int idx)
+		{
+			return obs_.find(name) -> second[idx];
+		}
+
+		const SpMatrix & matrix(const std::string & name, int idx) const
+		{
+			return obs_.find(name) -> second[idx];
+		}
+
 		void incrAllObs(int tstp, int psi_tstp = -1)
 		{
 			if (psi_tstp == -1) psi_tstp = tstp;
