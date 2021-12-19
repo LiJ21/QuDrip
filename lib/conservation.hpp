@@ -243,17 +243,13 @@ auto LooseConstrain(IDX && index, CQ && cq, CQs&&... cqs)
 	std::cout << "Constrain: original range " << index.range() << std::endl;
 	auto & origin_index = strip(index);
 	auto sub = SubIndex<decltype(strip(index)), P>(strip(index));
-	index[0];
-	sub.mapping.reserve(index.range());
-	sub.inv_mapping.reserve(index.range());
-	for(auto i : range(index.range()))
+	for(index[0]; index < index.range(); ++index)
 	{
 		if(Evaluate<tight>(std::forward<CQ>(cq), std::forward<CQs>(cqs)...))
 		{
 			sub.mapping.push_back(origin_index);
 			sub.inv_mapping.insert({origin_index, sub.mapping.size() - 1});
 		}
-		++index;
 	}
 	sub[0];
 	return sub;
