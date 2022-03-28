@@ -48,6 +48,6 @@ int main(int argc, char** argv)
 
 	solver.getGroundState(ham_mat, psi(0), 50);
 
-	cout << "E = " << psi.eval(ham_mat) << endl;
+	cout << "E = " << psi.eval(0, ham_mat) << endl;
 	return 0;
 }
