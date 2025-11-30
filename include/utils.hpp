@@ -2,6 +2,33 @@
 #include <chrono>
 #include <random>
 namespace qudrip {
+template <typename T, int N>
+T StaticInnerProduct(const StaticVector<T, N>& v1,
+                     const StaticVector<T, N>& v2) {
+  return (v1.adjoint() * v2)(0, 0);
+}
+
+template <typename T, typename T1>
+void StaticCrossProduct(StaticVector<T1, 3>& result,
+                        const StaticVector<T, 3>& v1,
+                        const StaticVector<T, 3>& v2) {
+  result[0] = v1[1] * v2[2] - v1[2] * v2[1];
+  result[1] = v1[2] * v2[0] - v1[0] * v2[2];
+  result[2] = v1[0] * v2[1] - v1[1] * v2[0];
+}
+
+template <typename T>
+StaticVector<T, 3> StaticCrossProduct(const StaticVector<T, 3>& v1,
+                                      const StaticVector<T, 3>& v2) {
+  StaticVector<T, 3> result;
+
+  result[0] = v1[1] * v2[2] - v1[2] * v2[1];
+  result[1] = v1[2] * v2[0] - v1[0] * v2[2];
+  result[2] = v1[0] * v2[1] - v1[1] * v2[0];
+
+  return result;
+}
+
 template <class IDX1, class IDX2>
 SpMatrix restrict(IDX1&& idx1, IDX2&& idx2, SpMatrix& mat) {
   auto ndim = idx2.range();
