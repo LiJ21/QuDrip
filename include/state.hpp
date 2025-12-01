@@ -74,7 +74,7 @@ class State {
   const auto mat() const { return psi_.block(0, t_, idx_.range(), 1); }
 
   template <typename OPsi_type, typename = typename OPsi_type::isOPsi>
-  State<T>& operator=(OPsi_type& OPsi) {
+  State<T>& operator=(OPsi_type&& OPsi) {
     OPsi.op.map(*this, t_, OPsi.psi, OPsi.psi.t());
     return *this;
   }

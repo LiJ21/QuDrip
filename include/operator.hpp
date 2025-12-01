@@ -57,12 +57,12 @@ size_t tree_size(const ops_type &ops) {
 template <typename OP, typename STATE>
 class OPsiType {
   friend STATE;
-  OP &op;
-  STATE &psi;
+  const OP &op;
+  const STATE &psi;
 
  public:
   class isOPsi {};
-  OPsiType(OP &op, STATE &psi) : op(op), psi(psi) {}
+  OPsiType(const OP &op, const STATE &psi) : op(op), psi(psi) {}
 };
 //=========================================================================
 class Operator {
