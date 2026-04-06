@@ -1,6 +1,6 @@
 # QuDrip
 
-**QuDrip** is a modern **C++** library designed for easy and efficient implementation of **exact quantum many-body simulations**. It provides a flexible operator framework, Hilbert-space restrictions via conservation laws, sparse-matrix algorithms, and utilities for Hamiltonian and Lindblad-type dynamics.
+**QuDrip** is a modern **C++** library designed for easy and efficient implementation of **exact quantum many-body simulations**. It values flexibility and development efficiency, while maintaining C++ native computational efficiency which is most suitable for small to medium system size with heterogenous fermion and boson dof combination as well as arbitrary constraint on the Hilbert space. It provides a flexible operator framework, Hilbert-space restrictions via conservation laws, sparse-matrix algorithms, and utilities for Hamiltonian and Lindblad-type dynamics.
 
 ---
 
