@@ -3,7 +3,9 @@
 **QuDrip** is a modern **C++** library designed for easy and efficient implementation of **exact quantum many-body simulations**. It values flexibility and development efficiency, while maintaining C++ native computational efficiency which is most suitable for small to medium system size with heterogenous fermion and boson dof combination as well as arbitrary constraint on the Hilbert space. It provides a flexible operator framework, Hilbert-space restrictions via conservation laws, sparse-matrix algorithms, and utilities for Hamiltonian and Lindblad-type dynamics.
 
 Peer reviewed papers using QuDrip:
+
 [Manipulating Intertwined Orders in Solids with Quantum Light, Phys. Rev. Lett. 125, 217402 (2020)](https://doi.org/10.1103/PhysRevLett.125.217402)
+
 [Twisted chiral superconductivity in photodoped frustrated Mott insulators, Phys. Rev. B 107, 205115 (2023) (Editor's suggestion)](https://doi.org/10.1103/PhysRevB.107.205115)
 
 ---
