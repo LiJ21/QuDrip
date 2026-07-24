@@ -66,8 +66,33 @@ auto ga = getBoseGate(prechain);
 
 Constrain Hilbert space: Nsite/2 spin-up and spin-down
 ```cpp
-auto chain = Constrain(prechain, Nset = Nsite / 2);
+auto spin_layout = getSpinClusters(prechain);
+auto chain = Constrain(spin_layout, Nset = Nsite / 2);
 ```
+
+Cluster layouts also support the existing spin-major Hubbard encoding and
+tensor products of bosonic modes:
+```cpp
+auto sites = getSiteClusters(fermi, Nsite);
+auto hubbard = Constrain(sites, nup = Nup, ndo = Ndo);
+
+auto modes = mode0 * mode1 * mode2;
+auto mode_layout = getModeClusters(modes);
+auto Nboson = getTotalOccupation(mode_layout);
+auto fixed_number = Constrain(mode_layout, Nboson = N);
+```
+
+Structured conserved quantities are enumerated with a cluster dynamic program;
+opaque quantities automatically use an exhaustive cluster-order fallback. The
+compact-to-raw mapping remains a contiguous vector. By default the inverse
+uses a hash for fast repeated operator assembly. Calling
+`layout.useDirectRank()` replaces that hash with the DP suffix-count ranker,
+which is useful when inverse-map memory matters but can make repeated operator
+assembly slower. The suffix table is the general cluster analogue of a table
+of binomial coefficients; it does not use overflow-prone factorials. Its
+charge dimension is compile-time specialized, and local contributions are
+stored as contiguous cluster rows so repeated rank calls require no scratch
+allocation or type-erased callback.
 
 Feed spin matrices into gates. Here it is simple spin ladder operator
 ```cpp
@@ -105,3 +130,15 @@ Ground-state energy is then evaluated
 ```cpp
 cout << "E = " << psi.eval(0, ham_mat) << endl;
 ```
+
+## Constraint benchmark
+
+The construction and operator-assembly benchmark is opt-in:
+```sh
+cmake -S . -B build -DQUDRIP_BUILD_BENCHMARKS=ON
+cmake --build build --target constraint_bench
+./build/constraint_bench 26 13 2 1 0
+```
+
+The arguments are spin sites, Hubbard sites, spin particles,
+particles-per-spin, and whether to use direct DP rank (`0` or `1`).

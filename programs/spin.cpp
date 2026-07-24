@@ -16,7 +16,8 @@ int main(int argc, char** argv) {
   auto ga = getBoseGate(prechain);
 
   std::cout << "Constraining..." << std::endl;
-  auto chain = Constrain(prechain, Nset = Nsite / 2);
+  auto spin_layout = getSpinClusters(prechain);
+  auto chain = Constrain(spin_layout, Nset = Nsite / 2);
   auto ndim = chain.range();
   std::cout << "dimension of Hil space = " << ndim << endl;
 

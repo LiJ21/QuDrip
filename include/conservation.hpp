@@ -83,6 +83,7 @@ class ConservedQuantityBase {
   operator quant_type() { return static_cast<sub *>(this)->eval(); }
 
   quant_type val() { return val_; }
+  quant_type val() const { return val_; }
 };
 //------------------------------------------------------------------------------
 
@@ -106,11 +107,17 @@ class Nset : public ConservedQuantityBase<Nset<T1>, T1> {
  public:
   using base::operator=;
 
-  Nset(const index_type &index, int start = -1, int end = -1)
-      : index(index), mask(0) {
+  Nset(const index_type &raw_index, int start = -1, int end = -1)
+      : index(raw_index), mask(0) {
     if (start == -1) start = 0;
-    if (end == -1) end = bits_type(index.range() - 1).count();
+    if (end == -1)
+      end = static_cast<int>(bits_type(raw_index.range() - 1).count());
     for (auto i : range(start, end + 1)) mask[i] = 1;
+  }
+
+  const bits_type &bit_mask() const noexcept { return mask; }
+  bool bound_to(const index_type &candidate) const noexcept {
+    return &index == &candidate;
   }
 };
 
@@ -138,8 +145,8 @@ class Nd : public ConservedQuantityBase<Nd<T1>, T1> {
  public:
   using base::operator=;
 
-  Nd(const index_type &index, int Nsite, bool hole = 0)
-      : index(index), Nsite_(Nsite), hole_(hole), mask(0) {
+  Nd(const index_type &raw_index, int Nsite, bool hole = 0)
+      : Nsite_(Nsite), index(raw_index), mask(0), hole_(hole) {
     for (auto i : range(0, Nsite)) {
       mask[i] = hole_;
     }
@@ -153,6 +160,12 @@ class Nd : public ConservedQuantityBase<Nd<T1>, T1> {
             mask2[i] = 1;
     }
     */
+  }
+
+  int site_count() const noexcept { return Nsite_; }
+  bool counts_holes() const noexcept { return hole_; }
+  bool bound_to(const index_type &candidate) const noexcept {
+    return &index == &candidate;
   }
 };
 //------------------------------------------------------------------------------
@@ -210,21 +223,23 @@ bool Evaluate(CQ &&cq) {
 }
 
 template <size_t tight, bool P, typename IDX, typename CQ, typename... CQs>
+  requires PlainIndexLike<IDX>
 auto LooseConstrain(IDX &&index, CQ &&cq, CQs &&...cqs) {
-  std::cout << "Constrain: original range " << index.range() << std::endl;
   auto &origin_index = strip(index);
-  auto sub = SubIndex<decltype(strip(index)), P>(strip(index));
+  std::vector<idxv_type> mapping;
   for (index[0]; index < index.range(); ++index) {
     if (Evaluate<tight>(std::forward<CQ>(cq), std::forward<CQs>(cqs)...)) {
-      sub.mapping.push_back(origin_index);
-      sub.inv_mapping.insert({origin_index, sub.mapping.size() - 1});
+      mapping.push_back(origin_index);
     }
   }
+  auto sub =
+      SubIndex<decltype(strip(index)), P>(strip(index), std::move(mapping));
   sub[0];
   return sub;
 }
 
 template <typename IDX, typename... CQs>
+  requires PlainIndexLike<IDX>
 auto Constrain(IDX &&index, CQs &&...cqs) {
   return LooseConstrain<0, true>(std::forward<IDX>(index),
                                  std::forward<CQs>(cqs)...);
@@ -256,3 +271,5 @@ auto getNh(index_type &&index, int Nsite) {
 }
 
 }  // namespace qudrip
+
+#include "cluster_constraint.hpp"

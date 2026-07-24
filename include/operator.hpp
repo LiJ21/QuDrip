@@ -200,8 +200,9 @@ inline void Operator::full_branch(trans_index_type &trans_index,
   for (size_t j = 0; j < n_leaves; ++j) {
     if (*(idx_b + j) != 0) {
       trans_index[*(idx_b + j) - 1];
-      if (index < index.range())
-        *(idx_b + j) = index + 1;
+      const auto compact_index = idxv_type(index);
+      if (compact_index < index.range())
+        *(idx_b + j) = compact_index + 1;
       else
         *(idx_b + j) = 0;
     }

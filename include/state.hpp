@@ -51,8 +51,9 @@ class State {
 
   value_type& operator[](int tstp) {
     t_ = tstp;
-    if (idx_ < idx_.range())
-      return psi_(idxv_type(idx_), tstp);
+    const auto compact_index = idxv_type(idx_);
+    if (compact_index < idx_.range())
+      return psi_(compact_index, tstp);
     else {
       null_position = 0.0;
       return null_position;

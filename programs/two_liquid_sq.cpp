@@ -233,7 +233,9 @@ int main(int argc, char** argv) {
   int nup_v, ndo_v;
   nup_v = Nsite % 2 ? Nsite / 2 + 1 : Nsite / 2;
   ndo_v = Nsite / 2;
-  auto hubbard = Constrain(fermi, nup = Nup, ndo = Ndo, nd = docc);
+  auto site_layout = getSiteClusters(fermi, Nsite);
+  auto hubbard =
+      Constrain(site_layout, nup = Nup, ndo = Ndo, nd = docc);
   auto time2 = chrono::high_resolution_clock::now();
   std::cout << hubbard.range() << endl;
   auto ndim = hubbard.range();

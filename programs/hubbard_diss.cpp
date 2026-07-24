@@ -99,7 +99,8 @@ int main(int argc, char** argv) {
   auto nfermi = getNset(fermi);
   auto nup = getNup(fermi, Nsite);
   auto ndo = getNdo(fermi, Nsite);
-  auto hubbard = Constrain(fermi, nup = Nup, ndo = Ndo);
+  auto site_layout = getSiteClusters(fermi, Nsite);
+  auto hubbard = Constrain(site_layout, nup = Nup, ndo = Ndo);
   std::cout << hubbard.range() << endl;
   auto gate = getHopFermiGate(fermi);
   auto ndim = hubbard.range();
