@@ -261,6 +261,7 @@ class LanczosSolver {
   void evolve(const OP_MAT& H, State<index_type>& psi, int tstp,
               double h) noexcept {
     assert(tstp < psi.nt() - 1);
+    double amp = std::sqrt(norm(psi(tstp).mat()));
     auto Mat = Hermitian::getKrylovReprAd(H, psi(tstp).mat(), helper1, helper2,
                                           kry_dim_, err);
     eigensolver.compute(Mat);
@@ -275,10 +276,13 @@ class LanczosSolver {
       diagkry(j, j) = std::cos(eigensolver.eigenvalues()(j, 0) * h) -
                       II * std::sin(eigensolver.eigenvalues()(j, 0) * h);
 
-    Matrix kry_psi(psi.ndim(), 1);
-    kry_psi = (eigensolver.eigenvectors() * diagkry *
-               eigensolver.eigenvectors().adjoint())
-                  .block(0, 0, psi.ndim(), 1);
+    // Krylov-space coefficients of exp(-i H h)|psi>: the start vector is
+    // e_1 in the Krylov basis, so the coefficient vector is the first
+    // column (Krylov-dim entries, not psi.ndim()); amp restores the norm
+    // of the input state
+    Matrix kry_psi = amp * (eigensolver.eigenvectors() * diagkry *
+                            eigensolver.eigenvectors().adjoint())
+                               .col(0);
 
     Hermitian::getKrylovGS(H, psi(tstp).mat(), kry_psi, helper1, helper2,
                            psi(tstp + 1).mat());
@@ -393,8 +397,8 @@ int expandBasis(const SpMatrix& H, Matrix& V, std::vector<value_type>& h,
 }
 
 template <>
-int expandBasis<1>(const SpMatrix& H, Matrix& V, std::vector<value_type>& h,
-                   int start, int add_dim) {
+inline int expandBasis<1>(const SpMatrix& H, Matrix& V,
+                          std::vector<value_type>& h, int start, int add_dim) {
   double n = 10.;
   int idx = 0;
   for (idx = start + 1; idx <= start + add_dim; ++idx) {
@@ -430,7 +434,7 @@ void initV0(Matrix& V, int ndim) {
 }
 
 template <>
-void initV0<1>(Matrix& V, int ndim) {
+inline void initV0<1>(Matrix& V, int ndim) {
   V.resize(ndim, 1);
 }
 
@@ -440,7 +444,7 @@ int get_d2(int kry_dim) {
 }
 
 template <>
-int get_d2<1>(int kry_dim) {
+inline int get_d2<1>(int kry_dim) {
   return 3;
 }
 
@@ -502,7 +506,7 @@ class ArnoldiSolver {
   ArnoldiSolver(index_type& index, int kry_dim)
       : kry_dim_(kry_dim),
         ndim_(index.range()),
-        psi_V(index, get_d2(kry_dim)),
+        psi_V(index, get_d2<herm>(kry_dim)),
         V(psi_V.data()),
         KR(kry_dim_, kry_dim_),
         diagkry(kry_dim_, kry_dim_),
@@ -551,14 +555,19 @@ class ArnoldiSolver {
     assert(tstp < psi.nt() - 1);
     if (kry_dim_rt == 0) kry_dim_rt = kry_dim_;
 
+    const double amp = std::sqrt(Hermitian::norm(psi(tstp).mat()));
     act_dim_ = 0;
     initV0<herm>(V0, ndim_);
     initKrylov(psi(tstp).mat());
     updateKrylovRepr(H, kry_dim_rt - 1);
 
+    // coefficients of exp(-i H h)|psi> in the Krylov basis are the first
+    // column of diagkry (the start vector is e_1); getState reconstructs
+    // the full-space vector -- for herm == 1 only three Lanczos vectors
+    // are stored, so the basis is regenerated from V0
     diagkry = MatrixExp(-II * KR.block(0, 0, act_dim_, act_dim_) * h);
-    psi(tstp + 1).mat() =
-        (V.block(0, 0, ndim_, act_dim_) * diagkry).block(0, 0, ndim_, 1);
+    getState(V, H, diagkry, psi(tstp + 1).mat(), V0, 0, herm_type<herm>());
+    psi(tstp + 1).mat() *= amp;
   }
 
   template <typename OP_MAT>

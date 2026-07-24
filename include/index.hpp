@@ -73,7 +73,7 @@ int_type bit_convert(const bits_type &idx) {
   return idx.to_ulong();
 }
 template <>
-unsigned long long bit_convert(const bits_type &idx) {
+inline unsigned long long bit_convert(const bits_type &idx) {
   return idx.to_ullong();
 }
 
@@ -297,12 +297,12 @@ decltype(auto) strip(IDX &&index) {
 }
 
 //------------------------------------------------------------------
-auto getQbits(int N) { return QbitsIndex<>(N); }
+inline auto getQbits(int N) { return QbitsIndex<>(N); }
 
-auto getSingleMode(int Nph) { return SingleModeIndex<>(Nph); }
+inline auto getSingleMode(int Nph) { return SingleModeIndex<>(Nph); }
 
 //------------------------------------------------------------------
-bits_type getQbitsLabel(int N) { return bits_type(N); }
+inline bits_type getQbitsLabel(int N) { return bits_type(N); }
 
 //
 }  // namespace qudrip

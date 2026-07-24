@@ -196,7 +196,7 @@ class McManager {
   }
 
   value_type obsValue(const std::string& name, int tstp, int idx) {
-    return data_.find(name)->second(idx);
+    return data_.find(name)->second(tstp, idx);
   }
 
   int report() { return my_rank_; }

@@ -36,7 +36,7 @@ auto getModeOp(SingleModeIndex<T>& index) {
 
 enum class Mode { Upper = 1, Lower = -1 };
 //==========================================================================================
-Matrix LadderMatrix(size_t ndim, Mode mode = Mode::Upper) {
+inline Matrix LadderMatrix(size_t ndim, Mode mode = Mode::Upper) {
   Matrix mat(ndim, ndim);
   mat.setZero();
   if (mode == Mode::Upper) {
@@ -53,7 +53,7 @@ Matrix LadderMatrix(size_t ndim, Mode mode = Mode::Upper) {
 }
 
 //==========================================================================================
-Matrix CoherentProjector(size_t ndim, value_type amp) {
+inline Matrix CoherentProjector(size_t ndim, value_type amp) {
   Matrix astate(ndim, 1);
 
   astate(0, 0) = 1.;
@@ -68,7 +68,7 @@ Matrix CoherentProjector(size_t ndim, value_type amp) {
 }
 
 //==========================================================================================
-Matrix FockProjector(size_t ndim, size_t idx) {
+inline Matrix FockProjector(size_t ndim, size_t idx) {
   Matrix mat(ndim, ndim);
   mat.setZero();
   mat(idx, idx) = 1.;

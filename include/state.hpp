@@ -17,7 +17,7 @@ class State {
   Matrix psi_;
   size_t nt_, ndim_;
   value_type null_position;
-  size_t t_;
+  size_t t_ = 0;
 
  public:
   Matrix& data() { return psi_; }
@@ -60,8 +60,7 @@ class State {
   }
 
   const value_type& operator[](int tstp) const {
-    return const_cast<const value_type&>(
-        const_cast<const State*>(this)->operator[](tstp));
+    return const_cast<State*>(this)->operator[](tstp);
   }
 
   State<T>& operator()(int tstp) {

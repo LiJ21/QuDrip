@@ -21,18 +21,20 @@ class elOpBase {
   elOpBase(size_t n_input, size_t n_output)
       : U_(n_input * n_output), n_input(n_input), n_output(n_output) {}
 
+  // U_ is laid out as U_[in * n_output + out] = U(out, in), i.e. the
+  // amplitude <out|U|in>, matching how branch() consumes it.
   virtual void operator<<(Matrix U) {
     assert(U.rows() == n_output);
     assert(U.cols() == n_input);
     for (auto i = 0; i < n_input; ++i)
-      for (auto j = 0; j < n_output; ++j) U_[i * n_output + j] = U(i, j);
+      for (auto j = 0; j < n_output; ++j) U_[i * n_output + j] = U(j, i);
   }
 
   virtual void invert() {
     assert(n_input == n_output);
     Matrix M(n_input, n_output);
     for (auto i = 0; i < n_input; ++i)
-      for (auto j = 0; j < n_output; ++j) M(i, j) = U_[i * n_output + j];
+      for (auto j = 0; j < n_output; ++j) M(j, i) = U_[i * n_output + j];
     operator<<(M.inverse().eval());
   }
 
@@ -46,7 +48,7 @@ class elOpBase {
 using ops_type = std::vector<std::shared_ptr<elOpBase>>;
 //=========================================================================
 // auxiliary function
-size_t tree_size(const ops_type &ops) {
+inline size_t tree_size(const ops_type &ops) {
   size_t res = 1;
   for (auto op = ops.begin(); op != ops.end(); ++op) {
     res = 1 + res * ((*op)->range());
@@ -67,8 +69,10 @@ class OPsiType {
 //=========================================================================
 class Operator {
   ops_type ops_;  // raw pointer
-  idx_tree_type idx_tree;
-  val_tree_type val_tree;
+  // scratch buffers for the tree expansion; mutable so that applying the
+  // operator (map/map_acc/full_branch) stays const
+  mutable idx_tree_type idx_tree;
+  mutable val_tree_type val_tree;
   size_t n_leaves;
 
  public:
@@ -93,15 +97,17 @@ class Operator {
   template <typename trans_index_type, typename index_type>
   inline void full_branch(trans_index_type &trans_index, index_type &index,
                           value_type init, idx_it_type &idx_b,
-                          val_it_type &val_b);
+                          val_it_type &val_b) const;
 
   template <typename index_type>
-  void map_acc(State<index_type> &to_psi, int t1, State<index_type> &from_psi,
-               int t2, value_type = 1.0);
+  void map_acc(State<index_type> &to_psi, int t1,
+               const State<index_type> &from_psi, int t2,
+               value_type = 1.0) const;
 
   template <typename index_type>
-  void map(State<index_type> &to_psi, int t1, State<index_type> &from_psi,
-           int t2, value_type = 1.0);
+  void map(State<index_type> &to_psi, int t1,
+           const State<index_type> &from_psi, int t2,
+           value_type = 1.0) const;
 
   template <typename index_type>
   auto operator*(const State<index_type> &psi) const {
@@ -135,7 +141,8 @@ class Operator {
 template <typename trans_index_type, typename index_type>
 inline void Operator::full_branch(trans_index_type &trans_index,
                                   index_type &index, value_type init,
-                                  idx_it_type &idx_b, val_it_type &val_b) {
+                                  idx_it_type &idx_b,
+                                  val_it_type &val_b) const {
 #ifdef PRINT_TREE
   std::cout << std::bitset<6>(idxv_type(trans_index)) << std::endl;
   std::flush(std::cout);
@@ -207,14 +214,16 @@ inline void Operator::full_branch(trans_index_type &trans_index,
 //==========================================================================
 template <typename index_type>
 void Operator::map(State<index_type> &to_psi, int t1,
-                   State<index_type> &from_psi, int t2, value_type coeff) {
-  to_psi(t2).mat().setZero();
-  map(to_psi, t1, from_psi, t2, coeff);
+                   const State<index_type> &from_psi, int t2,
+                   value_type coeff) const {
+  to_psi(t1).mat().setZero();
+  map_acc(to_psi, t1, from_psi, t2, coeff);
 }
 //==========================================================================
 template <typename index_type>
 void Operator::map_acc(State<index_type> &to_psi, int t1,
-                       State<index_type> &from_psi, int t2, value_type coeff) {
+                       const State<index_type> &from_psi, int t2,
+                       value_type coeff) const {
   auto &index = from_psi.get_index();
   auto &trans_index = strip(index);
   auto ndim = index.range();
@@ -222,7 +231,7 @@ void Operator::map_acc(State<index_type> &to_psi, int t1,
   val_it_type val_b;
   for (idxv_type i = 0; i < ndim; ++i) {
     index[i];
-    full_branch(trans_index, index, coeff * from_psi(t2).mat()(i, 0), idx_b,
+    full_branch(trans_index, index, coeff * from_psi.data()(i, t2), idx_b,
                 val_b);
     for (size_t j = 0; j < n_leaves; ++j) {
       if (*(idx_b + j) != 0 && std::abs(*(val_b + j)) > eps)

@@ -40,7 +40,8 @@ SpMatrix restrict(IDX1&& idx1, IDX2&& idx2, SpMatrix& mat) {
       idxv_type pp = idx2;
       idx1[it.col()];
       idxv_type ppp = idx2;
-      if (pp != -1 && ppp != -1) res.insert(pp, ppp) = it.value();
+      // an index outside the restricted subspace converts to range()
+      if (pp < ndim && ppp < ndim) res.insert(pp, ppp) = it.value();
     }
 
   return res;
@@ -77,7 +78,7 @@ std::vector<double> state_to_p(int tstp, State<IDX1>& psi, IDX1& tot_index,
   return p;
 }
 
-Matrix herm_exp(const Matrix& A, value_type alpha) {
+inline Matrix herm_exp(const Matrix& A, value_type alpha) {
   assert(A.rows() == A.cols());
   Matrix expA(A.rows(), A.cols());
   Matrix temp(A.rows(), A.cols());

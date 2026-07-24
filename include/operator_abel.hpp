@@ -34,17 +34,19 @@ class OperatorSum {
   }
 
   template <typename index_type>
-  void map_acc(State<index_type>& to_psi, int t1, State<index_type>& from_psi,
-               int t2, value_type coeff = 1.0) {
+  void map_acc(State<index_type>& to_psi, int t1,
+               const State<index_type>& from_psi, int t2,
+               value_type coeff = 1.0) const {
     for (int i = 0; i < ops_.size(); ++i) {
       ops_[i].map_acc(to_psi, t1, from_psi, t2, coeffs_[i] * coeff);
     }
   }
 
   template <typename index_type>
-  void map(State<index_type>& to_psi, int t1, State<index_type>& from_psi,
-           int t2, value_type coeff = 1.0) {
-    to_psi(t2).mat().setZero();
+  void map(State<index_type>& to_psi, int t1,
+           const State<index_type>& from_psi, int t2,
+           value_type coeff = 1.0) const {
+    to_psi(t1).mat().setZero();
     map_acc(to_psi, t1, from_psi, t2, coeff);
   }
 
@@ -58,7 +60,7 @@ class OperatorSum {
   }
 
   template <typename index_type>
-  auto operator*(State<index_type>& psi) {
+  auto operator*(const State<index_type>& psi) const {
     return OPsiType<OperatorSum, State<index_type>>(*this, psi);
   }
 
@@ -128,33 +130,33 @@ class OperatorSum {
 };
 
 //=============================================================
-OperatorSum operator*(value_type coeff, const Operator& op) {
+inline OperatorSum operator*(value_type coeff, const Operator& op) {
   return OperatorSum(op, coeff);
 }
 
-OperatorSum operator*(const Operator& op, value_type coeff) {
+inline OperatorSum operator*(const Operator& op, value_type coeff) {
   return OperatorSum(op, coeff);
 }
 
-OperatorSum operator*(value_type coeff, const OperatorSum& ops) {
+inline OperatorSum operator*(value_type coeff, const OperatorSum& ops) {
   auto newOS = ops * coeff;
 
   return newOS;
 }
 
-OperatorSum operator+(const Operator& op1, const Operator& op2) {
+inline OperatorSum operator+(const Operator& op1, const Operator& op2) {
   OperatorSum newOS(op1, 1.0);
   newOS.append(op2, 1.0);
   return newOS;
 }
 
-OperatorSum operator-(const Operator& op1, const Operator& op2) {
+inline OperatorSum operator-(const Operator& op1, const Operator& op2) {
   OperatorSum newOS(op1, 1.0);
   newOS.append(op2, -1.0);
   return newOS;
 }
 
 //=============================================================
-OperatorSum getEmptyOperator() { return OperatorSum(2); }
+inline OperatorSum getEmptyOperator() { return OperatorSum(2); }
 
 }  // namespace qudrip

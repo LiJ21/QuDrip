@@ -39,10 +39,10 @@ auto getBoseGate(QbitsIndex<T>& index) {
 }
 
 //==========================================================================
-const Matrix pauli_x = (Matrix(2, 2) << 0, 1, 1, 0).finished();
-const Matrix pauli_y = (Matrix(2, 2) << 0, -II, II, 0).finished();
-const Matrix pauli_z = (Matrix(2, 2) << 1, 0, 0, -1).finished();
-const Matrix id = (Matrix(2, 2) << 1, 0, 0, 1).finished();
+inline const Matrix pauli_x = (Matrix(2, 2) << 0, 1, 1, 0).finished();
+inline const Matrix pauli_y = (Matrix(2, 2) << 0, -II, II, 0).finished();
+inline const Matrix pauli_z = (Matrix(2, 2) << 1, 0, 0, -1).finished();
+inline const Matrix id = (Matrix(2, 2) << 1, 0, 0, 1).finished();
 
 //==========================================================================
 template <typename T>

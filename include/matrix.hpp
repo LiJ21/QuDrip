@@ -17,7 +17,7 @@ template <int N>
 using StaticIVector = StaticVector<int, N>;
 template <int N>
 using StaticDVector = StaticVector<double, N>;
-auto MatrixExp(const Matrix& mat) { return mat.exp(); }
+inline auto MatrixExp(const Matrix& mat) { return mat.exp(); }
 
 }  // namespace qudrip
 

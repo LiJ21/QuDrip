@@ -1,5 +1,6 @@
 #pragma once
 #include<string>
+#include<stdexcept>
 #include<unordered_map>
 #include<Eigen/Dense>
 
@@ -75,7 +76,7 @@ int get_reci(std::vector<StaticIVector<N>> & rpvec, const std::vector<StaticIVec
 }
 
 template<>
-int dispatch_getr<1>(std::vector<StaticIVector<1>> & rpvec, const std::vector<StaticIVector<1>> & pvec)
+inline int dispatch_getr<1>(std::vector<StaticIVector<1>> & rpvec, const std::vector<StaticIVector<1>> & pvec)
 {
 	rpvec[0](0) = pvec[0](0);
 	return StaticInnerProduct(pvec[0], pvec[0]);
@@ -83,7 +84,7 @@ int dispatch_getr<1>(std::vector<StaticIVector<1>> & rpvec, const std::vector<St
 }
 
 template<>
-int dispatch_getr<2>(std::vector<StaticIVector<2>> & rpvec, const std::vector<StaticIVector<2>> & pvec)
+inline int dispatch_getr<2>(std::vector<StaticIVector<2>> & rpvec, const std::vector<StaticIVector<2>> & pvec)
 {
 	rpvec[0](0) = -pvec[1](1);
 	rpvec[0](1) = pvec[1](0);
@@ -96,7 +97,7 @@ int dispatch_getr<2>(std::vector<StaticIVector<2>> & rpvec, const std::vector<St
 }
 
 template<>
-int dispatch_getr<3>(std::vector<StaticIVector<3>> & rpvec, const std::vector<StaticIVector<3>> & pvec)
+inline int dispatch_getr<3>(std::vector<StaticIVector<3>> & rpvec, const std::vector<StaticIVector<3>> & pvec)
 {
 	StaticCrossProduct(rpvec[0], pvec[1], pvec[2]);
 	StaticCrossProduct(rpvec[1], pvec[2], pvec[0]);
@@ -150,11 +151,18 @@ private:
 public:
 
 	Lattice(const coords_type & coord, const coords_type & pvec):
-		coord_(coord), N_(coord.size()), 
+		coord_(coord), N_(coord.size()),
 		pvec_(pvec), rpvec_(ndim_)
 	{
-		assert(pvec_.size() == ndim_);
-		vol_ = get_reci<ndim_>(rpvec_, pvec_);
+		if(pvec_.size() == 0)
+		{
+			vol_ = 0; //no periodicity: reduce() is the identity
+		}
+		else
+		{
+			assert(pvec_.size() == ndim_);
+			vol_ = get_reci<ndim_>(rpvec_, pvec_);
+		}
 
 		for(auto & p : coord_) for(int i = 0; i < p.rows(); ++i) 
 			if(p(i) < 0) 
@@ -211,10 +219,10 @@ class LatticeFunction
 	std::vector<val_type> data_;
 	int argn_;
 
-	int convert_idx(const arg_type & arg)
+	int convert_idx(const arg_type & arg) const
 	{
 		int idx = 0;
-		for(int i = 0; i < arg.size(); ++i) 
+		for(int i = 0; i < arg.size(); ++i)
 		{
 			idx *= latt_.N();
 			idx += arg[i];
@@ -222,7 +230,7 @@ class LatticeFunction
 		return idx;
 	}
 
-	void convert_arg(arg_type & arg, int idx)
+	void convert_arg(arg_type & arg, int idx) const
 	{
 		for(int i = arg.size() - 1; i >=0; --i)
 		{
@@ -265,14 +273,19 @@ public:
 	val_type DFT(const coord_type & k) const //k is momentum (reciprocal lattice)
 	{
 		assert(argn_ == 1);
-		val_type result;
+		if(latt_.vol() == 0)
+			throw std::logic_error("DFT requires a periodic lattice");
+		val_type result{};
 		for(size_t i = 0; i < latt_.N(); ++i)
-		{		
+		{
 			//auto & x = this -> operator()(i);
 			auto & x = latt_(i);
 			double arg = 0.;
-			for(int j = 0; j < ndim_; ++j) 
-				arg += StaticInnerProduct(x, k(j) * latt_.rpvec(j)) / (double) latt_.vol();
+			for(int j = 0; j < ndim_; ++j)
+			{
+				coord_type kr = k(j) * latt_.rpvec(j);
+				arg += StaticInnerProduct(x, kr) / (double) latt_.vol();
+			}
 			result += data_[i] * value_type(std::cos(arg), std::sin(arg));
 		}
 		result /= latt_.N();
@@ -282,18 +295,22 @@ public:
 	val_type DFT(const std::vector<coord_type> & ks) const //k is momentum (reciprocal lattice)
 	{
 		assert(argn_ == ks.size());
-		val_type result;
+		if(latt_.vol() == 0)
+			throw std::logic_error("DFT requires a periodic lattice");
+		val_type result{};
 		for(size_t i = 0; i < data_.size(); ++i)
-		{		
-			arg_type argi;
+		{
+			arg_type argi(argn_);
 			convert_arg(argi, i);
 			double arg = 0.;
 			for(int ix = 0; ix < argn_; ++ix)
 			{
 				auto & x = latt_(argi[ix]);
-				for(int j = 0; j < ndim_; ++j) 
-					arg += StaticInnerProduct(x, ks[i](j) * latt_.rpvec(j)) 
-						/ (double) latt_.vol();
+				for(int j = 0; j < ndim_; ++j)
+				{
+					coord_type kr = ks[ix](j) * latt_.rpvec(j);
+					arg += StaticInnerProduct(x, kr) / (double) latt_.vol();
+				}
 			}
 			result += data_[i] * value_type(std::cos(arg), std::sin(arg));
 		}

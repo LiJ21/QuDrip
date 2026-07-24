@@ -2,12 +2,14 @@
 #include <fstream>
 #include <iostream>
 #include <complex>
+#include <sstream>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #ifndef FIND_PARAM
 #define FIND_PARAM
-std::string delete_space(std::string s) {
+inline std::string delete_space(std::string s) {
   s.erase(std::remove_if(s.begin(), s.end(),
                          [](char &c) {
                            return std::isspace<char>(c, std::locale::classic());
@@ -65,17 +67,17 @@ void param_finder::find_param(std::string param, T &value, int warning) {
 }
 
 template <>
-auto convert<int>(const std::string &str) {
+inline auto convert<int>(const std::string &str) {
   return stoi(str);
 }
 
 template <>
-auto convert<std::string>(const std::string &str) {
+inline auto convert<std::string>(const std::string &str) {
   return str;
 }
 
 template <>
-auto convert<long>(const std::string &str) {
+inline auto convert<long>(const std::string &str) {
   return stoi(str);
 }
 
@@ -103,7 +105,7 @@ void param_finder::find_param_tvec(std::string param, std::vector<T> &value,
 }
 
 template <>
-void param_finder::find_param_tvec<std::complex<double>>(
+inline void param_finder::find_param_tvec<std::complex<double>>(
     std::string param, std::vector<std::complex<double>> &value, int warning) {
   auto pval = params.find(param);
   auto II = std::complex<double>(0.0, 1.0);
