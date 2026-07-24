@@ -15,7 +15,7 @@ class modeOp : public elOpBase {
         index_(index),
         ndim_(index.range()) {}
 
-  Operator operator()(size_t site) {
+  Operator operator()(size_t) {
     return Operator(
         std::static_pointer_cast<elOpBase>(std::make_shared<modeOp>(*this)));
   }
@@ -25,6 +25,18 @@ class modeOp : public elOpBase {
   virtual void feed_idx(idx_size_t idx) override { index_[idx]; }
 
   virtual idx_size_t get_idx() override { return index_; }
+
+  bool describe_factor(detail::FactorDescriptor& factor) const noexcept override {
+    factor.kind = detail::FactorKind::ModeMatrix;
+    factor.primitive_identity = std::addressof(index_);
+    factor.input_range = elOpBase::n_input;
+    factor.output_range = elOpBase::n_output;
+    factor.matrix = std::span<const value_type>(elOpBase::U_);
+    factor.site = 0;
+    factor.site2 = 0;
+    factor.string_value = 1;
+    return true;
+  }
 };
 
 //==========================================================================
@@ -57,7 +69,7 @@ inline Matrix CoherentProjector(size_t ndim, value_type amp) {
   Matrix astate(ndim, 1);
 
   astate(0, 0) = 1.;
-  for (int i = 1; i < ndim; ++i) {
+  for (size_t i = 1; i < ndim; ++i) {
     astate(i, 0) = astate(i - 1, 0) * amp / std::sqrt((double)i);
   }
   astate *= std::exp(-std::abs(amp) * std::abs(amp) / 2.0);

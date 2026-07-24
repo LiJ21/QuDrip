@@ -25,8 +25,8 @@ class State {
 
   State(T& idx, size_t nt)
       : idx_(idx),
-        nt_(nt),
         psi_(Matrix::Zero(idx_.range(), nt)),
+        nt_(nt),
         ndim_(idx_.range()),
         null_position(0.0) {}
 
@@ -79,7 +79,8 @@ class State {
     return *this;
   }
 
-  index_type& get_index() const { return idx_; }
+  index_type& get_index() noexcept { return idx_; }
+  const index_type& get_index() const noexcept { return idx_; }
 
   int ndim() const { return idx_.range(); }
   int nt() const { return nt_; }

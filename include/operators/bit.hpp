@@ -15,6 +15,7 @@ class bitOp : public elOpBase {
       : elOpBase(2, 2), index_(index), string_(string) {}
 
   Operator operator()(size_t site) {
+    (void)detail::checked_site_mask(site, index_.range() - 1);
     site_ = site;
     return Operator(
         std::static_pointer_cast<elOpBase>(std::make_shared<bitOp>(*this)));
@@ -24,6 +25,18 @@ class bitOp : public elOpBase {
   virtual void feed_idx(idx_size_t idx) override { index_[idx]; }
 
   virtual idx_size_t get_idx() override { return index_; }
+
+  bool describe_factor(detail::FactorDescriptor& factor) const noexcept override {
+    factor.kind = detail::FactorKind::BitMatrix;
+    factor.primitive_identity = std::addressof(index_);
+    factor.input_range = elOpBase::n_input;
+    factor.output_range = elOpBase::n_output;
+    factor.matrix = std::span<const value_type>(elOpBase::U_);
+    factor.site = site_;
+    factor.site2 = site_;
+    factor.string_value = string_;
+    return true;
+  }
 };
 
 //==========================================================================
@@ -48,14 +61,13 @@ inline const Matrix id = (Matrix(2, 2) << 1, 0, 0, 1).finished();
 template <typename T>
 void bitOp<T>::branch(idx_it_type& idx_b, val_it_type& val_b,
                       idx_it_type& idx_w, val_it_type& val_w) {
-  int i = 0;
   value_type val0, val1;
   idxv_type idx0, idx1;
   if (*idx_b != 0) {
     bits_type bits(*idx_b - 1);  // get the bitset representation
     // auto & U = U_[bits[site_]];
     auto prev_set =
-        bits_type(bit_convert<idxv_type>(bits) >> site_ + 1).count();
+        bits_type(bit_convert<idxv_type>(bits) >> (site_ + 1)).count();
     value_type jw = prev_set % 2 ? string_ : 1;
     // val0 = jw * U(0,0) * (*val_b);
     // val1 = jw * U(1,0) * (*val_b);

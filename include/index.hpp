@@ -5,6 +5,7 @@
 #include <concepts>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <tuple>
 #include <type_traits>
@@ -27,6 +28,15 @@ concept ClusterLayoutLike = requires {
 template <typename T>
 concept PlainIndexLike = IndexLike<T> && (!ClusterLayoutLike<T>);
 
+template <class T>
+class QbitsIndex;
+
+template <class T>
+class SingleModeIndex;
+
+template <class T1, class T2>
+class Indices;
+
 namespace detail {
 class MaterializedMapping;
 }
@@ -34,6 +44,103 @@ class MaterializedMapping;
 template <typename T, bool P = false,
           typename Backend = detail::MaterializedMapping>
 class SubIndex;
+
+namespace detail {
+
+inline idx_size_t checked_index_product(idx_size_t lhs, idx_size_t rhs) {
+  if (lhs != 0 && rhs > std::numeric_limits<idx_size_t>::max() / lhs)
+    throw std::overflow_error("tensor-product index range overflow");
+  return lhs * rhs;
+}
+
+inline idxv_type checked_raw_add(idxv_type lhs, idxv_type rhs) {
+  if (rhs > std::numeric_limits<idxv_type>::max() - lhs)
+    throw std::overflow_error("raw leaf replacement overflow");
+  return lhs + rhs;
+}
+
+inline idxv_type checked_raw_subtract(idxv_type lhs, idxv_type rhs) {
+  if (rhs > lhs)
+    throw std::overflow_error("raw leaf replacement underflow");
+  return lhs - rhs;
+}
+
+enum class RawLeafKind { Unknown, Qbits, SingleMode };
+
+struct RawLeafBinding {
+  const void *identity = nullptr;
+  idxv_type range = 0;
+  idxv_type stride = 0;
+  RawLeafKind kind = RawLeafKind::Unknown;
+
+  idxv_type extract(idxv_type raw) const {
+    if (range == 0 || stride == 0)
+      throw std::logic_error("invalid raw leaf binding");
+    return (raw / stride) % range;
+  }
+
+  idxv_type replace(idxv_type raw, idxv_type old_local,
+                    idxv_type new_local) const {
+    if (old_local >= range || new_local >= range)
+      throw std::out_of_range("raw leaf state outside local range");
+    if (extract(raw) != old_local)
+      throw std::invalid_argument(
+          "raw leaf replacement does not match the encoded state");
+
+    if (new_local > old_local) {
+      const auto increment = checked_index_product(
+          new_local - old_local, stride);
+      return checked_raw_add(raw, increment);
+    }
+    if (old_local > new_local) {
+      const auto decrement = checked_index_product(
+          old_local - new_local, stride);
+      return checked_raw_subtract(raw, decrement);
+    }
+    return raw;
+  }
+};
+
+using RawLeafBindings = std::vector<RawLeafBinding>;
+
+template <class T>
+void append_raw_leaf_bindings(const QbitsIndex<T> &index,
+                              idxv_type stride,
+                              RawLeafBindings &bindings);
+
+template <class T>
+void append_raw_leaf_bindings(const SingleModeIndex<T> &index,
+                              idxv_type stride,
+                              RawLeafBindings &bindings);
+
+template <class T1, class T2>
+void append_raw_leaf_bindings(const Indices<T1, T2> &index,
+                              idxv_type stride,
+                              RawLeafBindings &bindings);
+
+template <typename T, bool P, typename Backend>
+void append_raw_leaf_bindings(const SubIndex<T, P, Backend> &index,
+                              idxv_type stride,
+                              RawLeafBindings &bindings);
+
+template <typename IDX>
+RawLeafBindings collect_raw_leaf_bindings(const IDX &index) {
+  RawLeafBindings bindings;
+  append_raw_leaf_bindings(index, 1, bindings);
+  return bindings;
+}
+
+inline const RawLeafBinding *find_unique_raw_leaf_binding(
+    const RawLeafBindings &bindings, const void *identity) noexcept {
+  const RawLeafBinding *match = nullptr;
+  for (const auto &binding : bindings) {
+    if (binding.identity != identity) continue;
+    if (match != nullptr) return nullptr;
+    match = std::addressof(binding);
+  }
+  return match;
+}
+}  // namespace detail
 
 template <size_t = 0, bool = false, typename IDX, typename CQ, typename... CQs>
   requires PlainIndexLike<IDX>
@@ -101,6 +208,16 @@ class IndexBase {
   }
 
   T range() const { return range_; }
+
+  idxv_type raw_at(idxv_type compact) const noexcept {
+    const auto missing = static_cast<idxv_type>(range_);
+    return compact < missing ? compact : missing;
+  }
+
+  idxv_type rank(idxv_type raw) const noexcept {
+    const auto missing = static_cast<idxv_type>(range_);
+    return raw < missing ? raw : missing;
+  }
 };
 //------------------------------------------------------------------
 
@@ -118,15 +235,28 @@ class QbitsIndex : public IndexBase<QbitsIndex<T>, T> {
   using base = IndexBase<QbitsIndex<T>, T>;
   friend class IndexBase<QbitsIndex<T>, T>;
 
+  static T checked_range(T bit_count) {
+    if constexpr (std::is_signed_v<T>) {
+      if (bit_count < 0)
+        throw std::invalid_argument("Qbit count must be nonnegative");
+    }
+    if (static_cast<std::make_unsigned_t<T>>(bit_count) >=
+        static_cast<std::make_unsigned_t<T>>(
+            std::numeric_limits<T>::digits))
+      throw std::overflow_error("Qbit index range is not representable");
+    return T(1) << bit_count;
+  }
+
   void t_idx(const bits_type &idx) { base::idx_value_ = bit_convert<T>(idx); }
   void t_idx(std::string idx) { t_idx(bits_type(idx)); }
 
   bits_type content() const { return bits_type(base::idx_value_); }
 
  public:
+  struct is_qbits {};
   using IndexBase<QbitsIndex<T>, T>::operator=;
 
-  QbitsIndex(T N) : IndexBase<QbitsIndex<T>, T>(T(1) << N) {}
+  QbitsIndex(T N) : IndexBase<QbitsIndex<T>, T>(checked_range(N)) {}
 };
 //------------------------------------------------------------------
 
@@ -135,6 +265,14 @@ class SingleModeIndex : public IndexBase<SingleModeIndex<T>, T> {
   using base = IndexBase<SingleModeIndex<T>, T>;
   friend class IndexBase<SingleModeIndex<T>, T>;
   int n_mode_;
+  static T checked_range(int n_mode) {
+    if (n_mode <= 0)
+      throw std::invalid_argument("mode range must be positive");
+    if (static_cast<unsigned long long>(n_mode) >
+        static_cast<unsigned long long>(std::numeric_limits<T>::max()))
+      throw std::overflow_error("mode range is not representable");
+    return static_cast<T>(n_mode);
+  }
   void t_idx(T N) { base::idx_value_ = N; }
   T content() const { return base::idx_value_; }
 
@@ -142,17 +280,12 @@ class SingleModeIndex : public IndexBase<SingleModeIndex<T>, T> {
   struct is_single_mode {};
   using IndexBase<SingleModeIndex<T>, T>::operator=;
   SingleModeIndex(int n_mode)
-      : IndexBase<SingleModeIndex<T>, T>(n_mode), n_mode_(n_mode) {}
+      : IndexBase<SingleModeIndex<T>, T>(checked_range(n_mode)),
+        n_mode_(n_mode) {}
 };
 //------------------------------------------------------------------
 
 namespace detail {
-
-inline idx_size_t checked_index_product(idx_size_t lhs, idx_size_t rhs) {
-  if (lhs != 0 && rhs > std::numeric_limits<idx_size_t>::max() / lhs)
-    throw std::overflow_error("tensor-product index range overflow");
-  return lhs * rhs;
-}
 
 template <typename IDX>
 void append_index_ranges(const IDX &index, std::vector<idx_size_t> &ranges) {
@@ -178,6 +311,11 @@ constexpr bool all_single_mode_indices(const IDX &index) {
 
 template <class T1, class T2>
 class Indices {
+  template <class L, class R>
+  friend void detail::append_raw_leaf_bindings(
+      const Indices<L, R> &index, idxv_type stride,
+      detail::RawLeafBindings &bindings);
+
   using lhs_type = T1;
   using rhs_type = T2;
 
@@ -224,6 +362,14 @@ class Indices {
   }
 
   idx_size_t range() const { return range_; }
+
+  idxv_type raw_at(idxv_type compact) const noexcept {
+    return compact < range_ ? compact : range_;
+  }
+
+  idxv_type rank(idxv_type raw) const noexcept {
+    return raw < range_ ? raw : range_;
+  }
 
   void append_local_ranges(std::vector<idx_size_t> &ranges) const {
     detail::append_index_ranges(lhs_, ranges);
@@ -318,6 +464,11 @@ class MaterializedMapping {
 
 template <typename T, bool P, typename Backend>
 class SubIndex {
+  template <typename Wrapped, bool Pretend, typename MappingBackend>
+  friend void detail::append_raw_leaf_bindings(
+      const SubIndex<Wrapped, Pretend, MappingBackend> &index,
+      idxv_type stride, detail::RawLeafBindings &bindings);
+
   template <typename IDX, typename std::remove_reference_t<IDX>::ear::type>
   friend decltype(auto) strip(IDX &&index);
 
@@ -391,10 +542,79 @@ class SubIndex {
   }
 
   idxv_type range() const noexcept { return backend_.size(); }
+
+  idxv_type raw_at(idxv_type compact) const
+      noexcept(noexcept(backend_.raw_at(compact))) {
+    return compact < backend_.size() ? backend_.raw_at(compact)
+                                     : backend_.size();
+  }
+
+  idxv_type rank(idxv_type raw) const
+      noexcept(noexcept(backend_.rank(raw))) {
+    return backend_.rank(raw);
+  }
+
   bool has_direct_rank() const noexcept {
     return backend_.has_direct_rank();
   }
 };
+
+//------------------------------------------------------------------
+namespace detail {
+
+template <typename Primitive>
+void append_primitive_raw_leaf_binding(
+    const Primitive &index, idxv_type stride,
+    RawLeafKind kind, RawLeafBindings &bindings) {
+  const auto local_range = static_cast<idxv_type>(index.range());
+  if (local_range == 0)
+    throw std::invalid_argument("raw leaf range must be positive");
+  if (stride == 0)
+    throw std::invalid_argument("raw leaf stride must be positive");
+
+  // The largest contribution of this leaf must fit in the raw label.
+  (void)checked_index_product(local_range - 1, stride);
+  bindings.push_back(
+      {static_cast<const void *>(std::addressof(index)), local_range,
+       stride, kind});
+}
+
+template <class T>
+void append_raw_leaf_bindings(const QbitsIndex<T> &index,
+                              idxv_type stride,
+                              RawLeafBindings &bindings) {
+  append_primitive_raw_leaf_binding(
+      index, stride, RawLeafKind::Qbits, bindings);
+}
+
+template <class T>
+void append_raw_leaf_bindings(const SingleModeIndex<T> &index,
+                              idxv_type stride,
+                              RawLeafBindings &bindings) {
+  append_primitive_raw_leaf_binding(
+      index, stride, RawLeafKind::SingleMode, bindings);
+}
+
+template <class T1, class T2>
+void append_raw_leaf_bindings(const Indices<T1, T2> &index,
+                              idxv_type stride,
+                              RawLeafBindings &bindings) {
+  const auto rhs_range = static_cast<idxv_type>(index.rhs_.range());
+  if (rhs_range == 0)
+    throw std::invalid_argument("raw product leaf range must be positive");
+  const auto lhs_stride = checked_index_product(stride, rhs_range);
+  append_raw_leaf_bindings(index.lhs_, lhs_stride, bindings);
+  append_raw_leaf_bindings(index.rhs_, stride, bindings);
+}
+
+template <typename T, bool P, typename Backend>
+void append_raw_leaf_bindings(const SubIndex<T, P, Backend> &index,
+                              idxv_type stride,
+                              RawLeafBindings &bindings) {
+  append_raw_leaf_bindings(index.earless_idx_, stride, bindings);
+}
+
+}  // namespace detail
 
 //------------------------------------------------------------------
 template <size_t start, typename T, size_t N, typename = typename T::is_index,
@@ -433,7 +653,11 @@ decltype(auto) strip(IDX &&index) {
 }
 
 //------------------------------------------------------------------
-inline auto getQbits(int N) { return QbitsIndex<>(N); }
+inline auto getQbits(int N) {
+  if (N < 0)
+    throw std::invalid_argument("Qbit count must be nonnegative");
+  return QbitsIndex<>(static_cast<idx_size_t>(N));
+}
 
 inline auto getSingleMode(int Nph) { return SingleModeIndex<>(Nph); }
 

@@ -142,3 +142,28 @@ cmake --build build --target constraint_bench
 
 The arguments are spin sites, Hubbard sites, spin particles,
 particles-per-spin, and whether to use direct DP rank (`0` or `1`).
+
+## Operator evaluation
+
+Built-in bit, hopping, and mode operators are bound to the raw tensor-product
+layout once per application. Deterministic terms use stateless mask or local
+lookup kernels; genuinely branching local matrices use a pruned,
+allocation-free depth-first traversal. Custom elementary operators that only
+implement the original mutable virtual interface continue to use the
+sequential compatibility path.
+
+`OperatorSum` sparse assembly evaluates source columns directly into Eigen's
+column-compressed format and reduces duplicate rows within each column. A sum
+containing a compatibility-only operator automatically falls back to the
+shared fused-triplet builder.
+
+The opt-in operator benchmark covers hash and direct-DP constrained spin
+sectors:
+
+```sh
+cmake -S . -B build -DQUDRIP_BUILD_BENCHMARKS=ON
+cmake --build build --target operator_bench
+./build/operator_bench 16 8 7
+```
+
+The arguments are spin sites, particle count, and timed trials.
